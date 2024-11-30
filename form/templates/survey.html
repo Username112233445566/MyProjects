@@ -1,0 +1,121 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Опросник</title>
+    <link rel="stylesheet" href="{% static 'styles.css' %}">
+</head>
+<body>
+    <div class="container">
+        <h1 id="survey-title">Опросник</h1>
+        <div id="survey-description"></div>
+        <form id="result-form" style="display: none;">
+            <input type="hidden" name="form" id="form-id">
+            <div class="question">
+                <label>
+                    <input type="radio" name="answer" value="true" required> За
+                </label>
+                <label>
+                    <input type="radio" name="answer" value="false" required> Против
+                </label>
+            </div>
+            <div class="comment">
+                <label for="coment">Комментарий (необязательно):</label>
+                <textarea name="coment" id="coment" rows="4"></textarea>
+            </div>
+            <button type="submit" class="submit-btn">Отправить</button>
+        </form>
+        <div id="completion-message" style="display: none;">
+            <h2>Спасибо за участие в опросе!</h2>
+        </div>
+    </div>
+    <script>
+        const surveyTitle = document.getElementById('survey-title');
+        const surveyDescription = document.getElementById('survey-description');
+        const resultForm = document.getElementById('result-form');
+        const formIdField = document.getElementById('form-id');
+        const completionMessage = document.getElementById('completion-message');
+
+        let currentSurveyIndex = 0; // Текущий индекс опроса
+        let surveys = []; // Список опросов
+
+        // Функция загрузки опроса
+        function loadSurvey(index) {
+            if (index < surveys.length) {
+                const survey = surveys[index];
+                surveyTitle.textContent = survey.title;
+                surveyDescription.textContent = survey.description;
+                formIdField.value = survey.id; // Устанавливаем ID формы
+                resultForm.style.display = 'block';
+                completionMessage.style.display = 'none';
+            } else {
+                resultForm.style.display = 'none';
+                completionMessage.style.display = 'block';
+            }
+        }
+
+        // Fetch survey data from API
+        fetch('/api/form/')
+            .then(response => response.json())
+            .then(data => {
+                surveys = data; // Сохраняем опросы в массив
+                if (surveys.length > 0) {
+                    loadSurvey(currentSurveyIndex); // Загружаем первый опрос
+                } else {
+                    surveyTitle.textContent = "Опросов нет.";
+                }
+            });
+
+        // Handle form submission
+        resultForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(resultForm);
+            const data = {
+                answer: formData.get('answer') === 'true',
+                coment: formData.get('coment') || '',
+                form: formIdField.value // Передаём ID формы
+            };
+
+            fetch('/api/result/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (response.ok) {
+                    currentSurveyIndex++; // Переходим к следующему опросу
+                    loadSurvey(currentSurveyIndex); // Загружаем следующий опрос
+                } else {
+                    return response.json().then(err => { throw err; });
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert(error.detail || 'Произошла ошибка при отправке.');
+            });
+        });
+
+        // Функция для получения CSRF-токена
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>
